@@ -1,1 +1,410 @@
-Hello world
+<!doctype html>
+<!-- Author: Luis Rodero Merino (https://github.com/lrodero), 2015
+     Published under the GNU Free Documentation License v1.3,
+     see license text at http://www.gnu.org/licenses/fdl-1.3.txt  -->
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+
+    <title>Intro to ScalaCheck - Madrid Scala Meetup</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <!-- For syntax highlighting of code paragraphs -->
+    <link rel="stylesheet" href="https://raw.githubusercontent.com/hakimel/reveal.js/master/lib/css/zenburn.css">
+    <link rel="stylesheet" href="https://raw.githubusercontent.com/hakimel/reveal.js/master/css/reveal.css">
+    <!--<link rel="stylesheet" href="/home/lrodero/Software/reveal.js-3.1.0-cloned-from-github/css/theme/serif.css" id="theme">-->
+    <link rel="stylesheet" href="https://raw.githubusercontent.com/hakimel/reveal.js/master/css/theme/black.css" id="theme">
+    <!-- Blue text color for small code parts inserted in 'normal' text -->
+    <style type="text/css">
+      code {
+        color: #AAAAFF
+      }
+    </style>
+  </head>
+
+  <body>
+
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown>
+          <script type="text/template">
+            # SCALACHECK
+
+            ###_Property-based testing in SCALA_
+
+            ScalaMAD (Scala Programming Meetup @ Madrid)
+            
+            17 Nov 2015
+
+            <br>
+
+            By: Luis Rodero-Merino (Habla Computing)
+
+            [`luis.rodero@hablapps.com`](luis.rodero@hablapps.com)
+          </script>
+        </section>
+
+        <section>
+          <h2>Property-based?</h2>
+
+          <p class="fragment" data-fragment-index="1" align="left"> Usually we set the expected output for some given input 
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+// Specs2 example
+class HelloWorldSpec extends Specification {
+  (...)
+  def e1 = "Hello world" must haveSize(11)
+}
+</code></pre>
+
+          <p class="fragment" data-fragment-index="2" align="left"> A <b>property</b> is set for <i>any</i> input 
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+val prSqrt    = forAll { (n: Int) => scala.math.sqrt(n*n) == n }
+val notPrSqrt = exists { (n: Int) => scala.math.sqrt(n*n) != n }
+</code></pre>
+          <p class="fragment" data-fragment-index="3" align="left"><i>"(...) ScalaCheck can be used to state props about isolated parts - units - of your code (usually methods)"</i>
+          <p class="fragment" data-fragment-index="3" align="left">Mostly, this refers to testing pure functions, <i>i.e.</i> with no side-effects, especially changes on state.
+        </section>
+
+        <section>
+          <h2>Combining Properties</h2>
+          <p class="fragment" data-fragment-index="1" align="left">Logically
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+val pOr  = p1 || p2  
+val pAnd = p1 && p2
+val pEq  = p1 == p2  // holds if p1 and p2 both hold or both fail
+val pIm  = p1 ==> p2 // if p1 holds, then p2 must hold
+</code></pre>
+          </p>
+          <p class="fragment" data-fragment-index="2" align="left">By grouping
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+object SomeSpec extends Properties("SomethingImportant") {
+  property("p1") = forAll{...}
+  property("p2") = forAll{...}
+  ...
+}
+object FullSpec extends Properties("TheWholeBunch") {
+  include(SomeSpec)
+  include(AnotherSpec)
+  ...
+}
+</code></pre>
+          </p>
+        </section>
+        <section>
+          <h2>Checking Properties</h2>
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+val concatStrPr = forAll {(s1:String, s2:String) =>
+  val concat = (s1+s2);
+  concat.endsWith(s2) &&
+  concat.startsWith(s1) &&
+  concat.size == s1.size + s2.size
+}
+concatStrPr.check // <-- cheching!
+</code></pre>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+val sumListPr = forAll {(l:List[Int]) =>
+  (l.sum > 0) ==> (l.indexWhere(_ > 0) > 0)
+}
+sumListPr.check
+</code></pre>
+        </section>
+        <section>
+          <h2>Results Discussion</h2>
+          <p class="fragment" data-fragment-index="1" align="left">Not really what we expected, huh?
+          <p class="fragment" data-fragment-index="2" align="left">Properties are subtle. Or, rather, our domain is
+          <p class="fragment" data-fragment-index="3" align="left">Ok, but... how is the 'magic' done?
+        </section>
+
+        <section data-background="gandalf.jpg" style="background-color:rgba(0, 0, 0, 0.5);">
+          <h2>Generators</h2>
+          <h3>(and shrinking)</h3>
+          <h2>"Magic"</h2>
+        </section>
+
+        <section>
+          <h2>Generators</h2>
+          <p class="fragment" data-fragment-index="1" align="left">Create random values (of any kind)
+          <p class="fragment" data-fragment-index="2" align="left">Used by ScalaCheck to generate test cases
+          <p class="fragment" data-fragment-index="3" align="left">Can be used in any other application or testing environment
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+class Gen[+T]{
+  (...)
+  def sample: Option[T] 
+  (...)
+}
+</code></pre>
+        </section>
+        
+        <section>
+          <h2>Provided Gens - Basic</h2>
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+val g1: Gen[Int] = Gen.choose(0,10)
+val g2: Gen[Double] = Gen.choose(0,0.5)
+val g3: Gen[Int] = Gen.chooseNum(-10,10)
+val g4: Gen[Double] = Gen.posNum[Double]
+</code></pre>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+Gen.alphaStr: Gen[String]; Gen.numStr: Gen[String]
+Gen.identifier: Gen[String]; Gen.uuid: Gen[java.util.UUID]
+</code></pre>
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+val g5: Gen[String] = Gen.oneOf("Meat","Vegs")
+val g6: Gen[String] = Gen.frequency((4,"Meat"),(1,"Vegs"))
+val g7: Gen[Seq[String]] = Gen.someOf("Apple", "Orange", "Banana")
+
+// Applicable also with other gens
+val g8: Gen[Int] = Gen.frequency((4,Gen.choose(0,10)),
+                                 (1,Gen.choose(10,100000)))
+</code></pre>
+        </section>
+        <section>
+          <h2>Provided Gens - Containers</h2>
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+val unifRand: Gen[Int] = Gen.choose(Int.MinValue,Int.MaxValue)
+val gL1: Gen[List[Int]] = Gen.listOf(unifRand)
+val gL2: Gen[List[String]] = Gen.listOfN(5,Gen.alphaStr)
+</code></pre>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+val gA: Gen[Array[Int]] = Gen.containerOf[Array,String](unifRand)
+val gS: Gen[Set[Int]] = Gen.containerOfN[Set,Int](10,unifRand)
+</code></pre>
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+val gT: Gen[(Int,Int)] = Gen.zip(unifRand,unifRand)
+</code></pre>
+<pre class="fragment" data-fragment-index="4"><code class="scala" data-trim>
+val gM: Gen[Map[Int,String]] =
+        Gen.mapOfN[Int,String](5,unifRand,alphaStr))
+</code></pre>
+<p class="fragment" data-fragment-index="5">
+<i>Careful with final size of</i> <code>Sets</code> <i>and</i> <code>Maps</code>!
+        </section>
+
+        <section>
+          <h2>Generators - Creation</h2>
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+class Gen[+T] {
+  def suchThat(f: T => Boolean): Gen[T]
+  def map[U](f: (T) => U): Gen[U]
+  def flatMap[U](f: (T) => Gen[U]): Gen[U]
+}
+</code></pre>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+val gL1: Gen[List[Int]] = Gen.listOfN(5,Gen.choose(0,100))
+val gL2: Gen[List[Int]] = gL1 suchThat (_.sum % 2 == 0)
+// RECALL! gL2.sample returns Option[List[Int]]
+</code></pre>
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+Gen.choose(0,100) map (_ * 2)  // Gen[Int]
+Gen.choose(0,1) map (_ == 0)   // Gen[Boolean]
+</code></pre>
+<pre class="fragment" data-fragment-index="4"><code class="scala" data-trim>
+case class User(name: String, age: Int)
+val userGen: Gen[User] = 
+  for {
+    name <- Gen.alphaStr
+    age  <- Gen.choose(0,200)
+  } yield User(name, age)
+
+val gLU1: Gen[List[User]] = Gen.listOfN[User](100, userGen)
+val gLU2: Gen[List[User]] = Gen.choose(0,10) flatMap
+                            (i => Gen.listOfN[User](i,userGen)
+</code></pre>
+
+        </section>
+
+        <section>
+          <h2>Passing Gens to Props</h2>
+          <h4>(Use of <code>Arbitrary</code>)</h4>
+<pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
+case class User(name:String, age:Int)
+// Let's assume we have a generator for our class 'User', userGen
+// How can ScalaCheck find it?  
+Prop.forAll{(u:User) => u.name != ""} // Error!
+</code></pre>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+// First solution, pass the gen explicitly:
+Prop.forAll(userGen){(u:User) => u.name != ""} // Will work
+</code></pre>
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+// Second solution: use Arbitrary
+// Scala uses instances of Arbitrary (which encapsulate a Gen)
+// to get the generators required by its properties.
+implicit val arbUserGen: Arbitrary[User] = Arbitrary(userGen)
+Prop.forAll{(u:User) => u.name != ""} // Will work
+
+// Now the gen will be available everywhere by Arbitrary
+val uG2: Gen[User] = Arbitrary.arbitrary[User] //uG2 eq userGen
+</code></pre>
+<pre class="fragment" data-fragment-index="4"><code class="scala" data-trim>
+// Several Arbitrary types are predefined:
+val gI: Gen[Int] = Arbitrary.arbitrary[Int]
+val gS: Gen[String] = Arbitrary.arbitrary[String] // :)
+// Also for BitSet, Date, BigInt, Future...
+</code></pre>
+        </section>
+
+        <section>
+          <h2>Generators - Special Test Cases</h2>
+          <code style="font-size: 0.7em">arbitrary[Int] != Gen.choose(Int.MinValue, Int.MaxValue)</code>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+// Arbitrary.scala:88
+implicit lazy val arbInt: Arbitrary[Int] = Arbitrary(
+  Gen.chooseNum(Int.MinValue, Int.MaxValue)
+)
+</code></pre>
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+// Gen.scala:570
+def chooseNum[T](minT: T, maxT: T, specials: T*)(
+  implicit num: Numeric[T], c: Choose[T]
+): Gen[T] = {
+  import num._
+  val basics = List(minT, maxT, zero, one, -one)
+  val basicsAndSpecials = for {
+    t <- specials ++ basics if t >= minT && t <= maxT
+  } yield (1, const(t))
+  val allGens = basicsAndSpecials ++ List(
+    (basicsAndSpecials.length, c.choose(minT, maxT)) )
+  // allGens is now (if specials is empty)
+  //  ( (1,minT),(1,maxT),(1,zero),(1,one),(1,-one),
+  //    (5,choose(minT,maxT)) ) 
+  frequency(allGens: _*)
+}
+</code></pre>
+        </section>
+
+        <section>
+          <h2>Shrinking</h2>
+            <p align="left">Aka <b><i>Testing Case Minimization</i></b>, done if error in property</p>
+            <p class="fragment" data-fragment-index="2" align="left">It needs an implicit <code>Shrink[T]</code> instance</p>
+<pre class="fragment" data-fragment-index="2"><code class="scala" data-trim>
+sealed abstract class Shrink[T] {
+  def shrink(x: T): Stream[T] // Shrinking T instances
+}
+</code></pre>
+            <p class="fragment" data-fragment-index="3" align="left">Implementations for common types are available</p>
+<pre class="fragment" data-fragment-index="3"><code class="scala" data-trim>
+implicit lazy val shrinkInt: Shrink[Int] = Shrink { n =>
+
+  def halfs(n: Int): Stream[Int] =
+    if(n == 0) empty else cons(n, halfs(n/2))
+
+  if(n == 0) empty else {
+    val ns = halfs(n/2).map(n - _)
+    cons(0, interleave(ns, ns.map(-1 * _)))
+  }
+} // Shrink.shrinkInt.shrink(100) take 20 foreach println
+//   Shrink.shrink[Int](100)
+</code></pre>
+
+        </section>
+
+        <section>
+          <h2>Stateful systems</h2>
+           <p align="left">What about <em><strong>stateful</strong></em> systems?
+           <p align="left">Welcome the <code>org.scalacheck.Commands</code> package
+        </section>
+
+        <section>
+          <h2>Functional Prog & ScalaCheck</h2>
+          <ul>
+            <li class="fragment" data-fragment-index="1">ScalaCheck follows ideas of FP:
+            <ul>
+              <li class="fragment" data-fragment-index="2">First we code tests gens and props, then we run them!
+              <li class="fragment" data-fragment-index="3">Gens and props form a language that we interpret
+            </ul>
+            <li class="fragment" data-fragment-index="4">Also, ScalaCheck fits FP testing
+            <ul>
+              <li class="fragment" data-fragment-index="5">In FP we define (algebraic) operators with certain laws (<i>e.g.</i> <code style="font-size: 0.9em">flatMap</code> associativity in monads)
+              <li class="fragment" data-fragment-index="6"><b>Scalaz</b> uses ScalaCheck to test such laws
+            </ul>
+          </ul>
+<pre class="fragment" data-fragment-index="7"><code class="scala" data-trim>
+$ scala -cp [scalacheck & scalaz (core and scalacheck bind) jars]
+scala> :paste
+import scalaz._
+import Scalaz._
+import scalacheck.ScalazProperties._
+import scalacheck.ScalazArbitrary._
+import scalacheck.ScalaCheckBinding._
+scala> functor.laws[List].check
+scala> monad.laws[List].check
+</code></pre>
+        </section>
+
+        <section>
+          <h1>Questions?</h1>
+        </section>
+        <section data-background="beers.jpg" style="background-color:rgba(0, 0, 0, 0.5);">
+          <h1>Thank you!<h1>
+          <h3><i>(Where is my beer?)</i></h3>
+        </section>
+
+      </div>
+
+      <!-- Customizing reveal.js for footer and header -->
+      <style type="text/css">
+        .reveal .footer {
+          position: absolute;
+          bottom: 1em;
+          left: 1em;
+          font-size: 0.4em;
+        }
+        .reveal .header-right {
+          position: absolute;
+          top: 1em;
+          right: 1em;
+          font-size: 0.5em;
+        }
+        .reveal .header {
+          position: absolute;
+          top: 1em;
+          left: 1em;
+          font-size: 0.5em;
+        }
+        .reveal .slide-number {
+          font-size: 0.5em;
+          color: #FFFFFF;
+          bottom: 1em
+        }
+      </style>
+
+      <div class="header-right">
+         <i>Property-Based Testing in Scala</i> | 17 Nov 25
+      </div>
+      <div class="header">
+        <img src="habla2.png" width="100">
+      </div>
+
+    </div>
+
+    <script src="https://raw.githubusercontent.com/hakimel/reveal.js/master/lib/js/head.min.js"></script>
+    <script src="https://raw.githubusercontent.com/hakimel/reveal.js/master/js/reveal.js"></script>
+
+    <script>
+
+      // Full list of configuration options available here:
+      // https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        controls: false,
+        center: true,
+        // rtl: true,
+        slideNumber: 'c/t',
+        transition: 'linear',
+        // transitionSpeed: 'slow',
+        backgroundTransition: 'slide',
+        dependencies: [
+          // Interpret Markdown in <section> elements
+          { src: 'https://raw.githubusercontent.com/hakimel/reveal.js/master/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'https://raw.githubusercontent.com/hakimel/reveal.js/master/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          // Syntax highlight for <code> elements
+          { src: 'https://raw.githubusercontent.com/hakimel/reveal.js/master/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'https://raw.githubusercontent.com/hakimel/reveal.js/master/lib/js/classList.js', condition: function() { return !document.body.classList; } }
+        ]
+      });
+
+    </script>
+
+  </body>
+</html>
