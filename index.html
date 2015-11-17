@@ -76,7 +76,7 @@ val notPrSqrt: Prop = exists{(n: Int) => scala.math.sqrt(n*n) != n}
 <pre class="fragment" data-fragment-index="1"><code class="scala" data-trim>
 val pOr:Prop  = p1 || p2  
 val pAnd:Prop = p1 && p2
-val pEq:Prop  = p1 == p2  // p1 and p2 both hold or both fail
+val pEq:Prop  = p1 == p2  // p1 p2 both pass, proved or fail
 val pIm:Prop  = p1 ==> p2 // if p1 holds, then p2 must hold
 </code></pre>
           </p>
